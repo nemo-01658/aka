@@ -1,66 +1,40 @@
-{
-    "listen": null,
-    "port": 2053,
-    "protocol": "vless",
-    "settings": {
-        "clients": [
-            {
-                "email": "my_email",
-                "flow": "",
-                "id": "my_id"
-            }
-        ],
-        "decryption": "...",
-        "encryption": "...",
-        "selectedAuth": "ML-KEM-768, Post-Quantum"
-    },
-    "streamSettings": {
-        "network": "ws",
-        "security": "tls",
-        "tlsSettings": {
-            "alpn": [
-                "http/1.1"
-            ],
-            "certificates": [
-                {
-                    "buildChain": false,
-                    "certificateFile": "/usr/local/x-ui/config/cert.pem",
-                    "keyFile": "/usr/local/x-ui/config/key.pem",
-                    "oneTimeLoading": false,
-                    "usage": "encipherment"
-                }
-            ],
-            "cipherSuites": "",
-            "disableSystemRoot": false,
-            "echForceQuery": "none",
-            "echServerKeys": "",
-            "enableSessionResumption": false,
-            "maxVersion": "1.3",
-            "minVersion": "1.2",
-            "rejectUnknownSni": false,
-            "serverName": "my.doman",
-            "verifyPeerCertInNames": [
-                "dns.google",
-                "cloudflare-dns.com"
-            ]
-        },
-        "wsSettings": {
-            "acceptProxyProtocol": false,
-            "headers": {},
-            "heartbeatPeriod": 0,
-            "host": "",
-            "path": "/my-path"
-        }
-    },
-    "tag": "inbound-2053",
-    "sniffing": {
-        "enabled": true,
-        "destOverride": [
-            "tls",
-            "quic",
-            "http"
-        ],
-        "metadataOnly": false,
-        "routeOnly": false
-    }
-}
+services:
+  3xui:
+    image: ghcr.io/mhsanaei/3x-ui:latest
+    container_name: 3xui_app
+    # hostname: yourhostname <- optional
+    # The bundled Fail2ban (XUI_ENABLE_FAIL2BAN below) enforces the per-client IP
+    # limit with iptables, which needs NET_ADMIN. Without these caps a ban is
+    # logged and shown in fail2ban status but never actually applied.
+    # NET_RAW covers ip6tables. If you disable Fail2ban you can drop cap_add.
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - $PWD/db/:/etc/x-ui/
+      - $PWD/cert/:/root/cert/
+    environment:
+      XRAY_VMESS_AEAD_FORCED: "false"
+      XUI_ENABLE_FAIL2BAN: "true"
+      # To use PostgreSQL instead of the default SQLite, run:
+      #   docker compose --profile postgres up -d
+      # and uncomment the two lines below.
+      # XUI_DB_TYPE: "postgres"
+      # XUI_DB_DSN: "postgres://xui:xui@postgres:5432/xui?sslmode=disable"
+    tty: true
+    ports:
+      - "2053:2053"
+    restart: unless-stopped
+
+  # Optional PostgreSQL backend — only started with: docker compose --profile postgres up -d
+  postgres:
+    image: postgres:16-alpine
+    container_name: 3xui_postgres
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: xui
+      POSTGRES_PASSWORD: xui
+      POSTGRES_DB: xui
+    volumes:
+      - $PWD/pgdata/:/var/lib/postgresql/data
+    restart: unless-stopped
